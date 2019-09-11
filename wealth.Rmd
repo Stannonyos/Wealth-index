@@ -1,0 +1,64 @@
+---
+title: "Constructing a wealth index"
+output: html_document
+date: "September 10, 2019"
+author: By Stanley Nyoro
+---
+**Wealth index** is a social economics indicator for measuring living standard of households. It can also be used as a proxy for food access. According to  [WFP](https://docs.wfp.org/api/documents/WFP-0000022418/download/), unlike poverty line, wealth index is not an absolute measure of poverty. When wealth of households is being referred to, it is only possible to talk of poor and wealthier households, but it is not possible to know who is absolutely poor or wealthy. The index is based on household’s ownership of selected assets, such as televisions and bicycles; materials used for housing construction; and types of water access and sanitation facilities. NB: When asset ownerships is skewed to one side, e.g. in urban areas more than in rural, it is advisable to build separate indices.   
+Wealthy index is generated using principal component analysis, and place individuals on a continous scale- based on the scores of the first principal component. The scale is then ranked, after which it is subdivided into 5 equal stratums called wealth quintiles.
+I have come up with a wealth index using from a data I generated. In R, the first thing is to run required packages and then import the data. 
+```{r message=F}
+library(readxl)
+library(tidyverse)
+library(knitr)
+library(kableExtra)
+library(dplyr)
+library(gmodels)
+setwd("D:/My projects/Wealth index")
+
+####Read multiple sheets
+path<-"data.xlsx"
+
+mydata2<- path %>%
+        excel_sheets() %>%
+        set_names() %>%
+       map(read_excel,
+           path = path)
+```
+After the code, the table below shows assets owned, source of drinking water, type of toilet facility and type of lighting. It displays how they have been coded as binary variables.
+```{r}
+mydata2$codings %>%
+  kable("html") %>%
+  kable_styling(font_size=12) %>%
+  kable_styling(bootstrap_options = c("striped", "hover", "condensed", "responsive"))
+```
+The data has 595 individuals. We display information of the first 20 cases. After displaying, I will then run a principal component analysis using R.
+```{r}
+head(mydata2$data2,n=20)%>%
+  kable("html") %>%
+  kable_styling(font_size=9) %>%
+  kable_styling(bootstrap_options = c("striped", "hover", "condensed", "responsive"))
+```
+I then run a principal component analysis using the code below. PCA involves replacing many correlated variables with a set of principal uncorrelated ‘principal components’ which can explain much of the variance and represent unobserved characteristics of the population. The technique is based on decomposition of variance covariance matrix or correlation matrix.  
+If variables used have different measurements e.g.in your data you have income measured in monetary terms, units measured in kgs, categorical scales, etc, you need first to standardize your variables.  
+I have used the variance covariance matrix decomposition, and rotated factor loadings using varimax.The scores of the first principal component have been used to come with the index.
+First principal component explains the largest proportion of the total variance and it is used as the wealth index to represent the households wealth. 
+```{r message=F}
+library(psych)
+prn<-psych::principal(mydata2$data2[,2:21], rotate="varimax", nfactors=3,covar=T, scores=TRUE)
+index=prn$scores[,1]
+```
+After getting the scores. Breakdown the scores into quintiles i.e. 5 equal groups. It is possible since the scores are continous. They are ranked on a scales, and can thus be categorized into groups. The lowest quintile (quintile 1) represent the bottom 20% i.e. poorest, and the upper quintile are the wealthiest i.e. top 20% of the population.
+```{r}
+nlab<-c(1,2,3,4,5)
+newdata<-mutate(mydata2$data2,quintile=as.factor(cut(index,breaks=5,labels=nlab)))
+```
+After creating a wealth index quintiles, we can cross tabulate with other variables such as region or residence status. Based on on the graph below on wealth breakdown in County A & County B, there are more people in County B that falls in the first stratum than in County A.
+```{r}
+ggplot(newdata, aes(County)) + geom_bar(aes(fill = quintile), position = "fill",width = 0.4) +
+  xlab("County") +
+  ylab("Percentage") +
+  ggtitle("Wealth Breakdown")
+  
+
+```
